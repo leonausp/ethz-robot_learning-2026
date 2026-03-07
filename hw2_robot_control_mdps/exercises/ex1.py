@@ -18,7 +18,9 @@ def get_lemniscate_keypoint(t, a=0.2):
         y (float or np.ndarray): y coordinates of the keypoint on the lemniscate.
         z (float or np.ndarray): z coordinates of the keypoint on the lemniscate.
     """
-    raise NotImplementedError()
+    y = a * np.cos(t) / (1+(np.sin(t)**2))
+    z = a * np.cos(t)*np.sin(t) / (1+(np.sin(t)**2))
+    return y, z
 
 def build_keypoints(count=16, width=0.25, x_offset=0.3, z_offset=0.25):
     """TODO:
@@ -38,7 +40,14 @@ def build_keypoints(count=16, width=0.25, x_offset=0.3, z_offset=0.25):
     Returns:
         np.ndarray: Array of shape (count, 3) containing the generated keypoints.
     """
-    raise NotImplementedError()
+    t = np.linspace(0, 2*np.pi, count, endpoint=False)
+    y,z = get_lemniscate_keypoint(t, a=width)
+    x_ofs = np.full((count), x_offset)
+    z_ofs = np.full((count), z_offset)
+    keypoints = np.column_stack([x_ofs, y, z+z_ofs])
+
+    return keypoints
+
 
 def ik_track(model, data, site_name, target_pos,
              damping=1e-3, pos_gain=2.0, dt=0.1, max_iters=2000):
@@ -82,10 +91,15 @@ def ik_track(model, data, site_name, target_pos,
         mujoco.mj_comPos(model, data)
 
         # TODO: compute end-effector position error
-        err_pos = ...
+        site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, site_name)
+        current_pos  = data.site_xpos[site_id].copy()
+        err_pos = target_pos - current_pos
+   
 
         # TODO: check if the 2-norm of the position error is within a small threshold (1e-3), if yes, break the loop
-        ...
+        threshold = 1e-3
+        if (np.sqrt(err_pos[0]**2+err_pos[1]**2+err_pos[2]**2) <= threshold):
+                break
         
         # Get the Jacobian of the end-effector using mj_jacSite.
         jacp = np.zeros((3, num_joints)) # position Jacobian
@@ -99,14 +113,23 @@ def ik_track(model, data, site_name, target_pos,
         # [pos_gain * err_pos, rot_gain * err_rot]. Since we are ignoring orientation tracking, you can set the rotational part of the weighted error to zero.
         # Instead of directly computing the matrix inverse (which can be numerically unstable), you should use np.linalg.solve to solve the 
         # linear system (J @ J^T + damping * I) x = weighted_err for x, and then compute qdot = J^T @ x. This is more stable and efficient than computing the inverse.
-        qdot = ...
+        
+        weighted_err_pos = pos_gain * err_pos
+        weighted_err_rot = np.zeros(3)
+        weighted_err = np.append(weighted_err_pos, weighted_err_rot)
+        a = J @ J.T + damping * np.identity(6)
+        b = weighted_err
+        x = np.linalg.solve(a,b)
+        qdot = J.T @ x
 
         # optional clamp to avoid overshoot
         qdot = np.clip(qdot, -2.0, 2.0)
 
+
         # Update the joint configuration (qpos) using the output from the Damped Least Squares method
         data.qvel[:] = 0.0
         data.qpos[:] += qdot * dt
+
 
     # If exiting the loop without reaching the target, print a warning message
     if i >= max_iters - 1 and np.linalg.norm(err_pos) >= 5e-3:
@@ -119,3 +142,20 @@ def ik_track(model, data, site_name, target_pos,
     mujoco.mj_kinematics(model, data)
     mujoco.mj_forward(model, data)
     return target_qpos
+
+
+
+
+# Theoretical questions
+
+#     1. If you increase the width of the Lemniscate (increasing a), what issue can happen with the robot performing IK?
+#     2. What can happen if you change the dt parameter in IK?
+#     3. We implemented a simple numerical IK solver. What are the advantages and disadvantages compared to an analytical IK solver?
+#     4. What are the limits of our IK solver compared to state-of-the-art IK solvers?
+
+
+# 1. The IK would not yield a solution as the target positions would get unreachable for the robot.
+# 2. The new target position will get changed and corresponds to a step size taken into the direction of the next position. 
+# (If too big -> might go out of bounds, if too small -> might not reach target position even though it is reachable))
+# 3. Advantages: general purpose (applicable to complex robots), Disadvantage: not necessarily the exact solution, can be computationally inefficient
+# 4. Only tracks position, no orientation. Robustness could be a problem (near sigularities).

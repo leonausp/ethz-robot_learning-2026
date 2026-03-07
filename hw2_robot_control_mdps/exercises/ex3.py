@@ -21,9 +21,9 @@ def reset_robot(default_qpos: np.ndarray) -> np.ndarray:
     Returns:
     - reset_qpos: np.ndarray. The joint positions to reset the robot to. Dimensionality: 1D array, Shape: (num_joints,).
     """
-    raise NotImplementedError()
-    
 
+    return default_qpos + np.random.uniform(-0.5, 0.5, default_qpos.size)
+    
 
 def reset_target_position(base_pos: np.ndarray) -> np.ndarray:
     """
@@ -39,8 +39,10 @@ def reset_target_position(base_pos: np.ndarray) -> np.ndarray:
     Returns:
     - target_pos: np.ndarray. The 3D position of the target relative to the base. Dimensionality: 1D array, Shape: (3,).
     """
-    raise NotImplementedError()
-
+    # x, y, z pertubation
+    pos_pertubation = np.array([np.random.uniform(0.2, 0.4), np.random.uniform(-0.2, 0.2),np.random.uniform(0.1, 0.4)])
+    
+    return (base_pos + pos_pertubation).astype(np.float64)
 
 def process_action(action: np.ndarray, jnt_range: np.ndarray) -> np.ndarray:
     """
@@ -57,7 +59,16 @@ def process_action(action: np.ndarray, jnt_range: np.ndarray) -> np.ndarray:
     Returns:
     - target_qpos: np.ndarray. Target joint positions to apply as control. Dimensionality: 1D array, Shape: (num_joints,).
     """
-    raise NotImplementedError()
+    # action range for interpolation
+    action_range = [-1, 1]
+
+    # target qpos (interpolated)
+    target_qpos = np.zeros_like(action)
+    for i in range(len(jnt_range)):
+            target_qpos[i] = np.interp(action[i], action_range, jnt_range[i])
+
+    return target_qpos
+
 
 
 def compute_reward(ee_tracking_error: float) -> float:
@@ -80,7 +91,13 @@ def compute_reward(ee_tracking_error: float) -> float:
     Returns:
     - reward: float. The computed reward based on the tracking error. Dimensionality: scalar
     """
-    raise NotImplementedError()
+    # dense (-> continuous) reward
+    dense_reward = np.exp(-2 * ee_tracking_error)
+    # sparse (-> has threshold) reward
+    sparse_reward = lambda: 1.0 if ee_tracking_error < 0.005 else 0.0
+    # total reward (-> sparse_reward() because it's a lamda function)
+    reward = dense_reward + sparse_reward()
+    return reward
 
 
 def get_obs(qpos: np.ndarray, ee_pos_w: np.ndarray, ee_rot_w: np.ndarray, base_pos_w: np.ndarray, base_rot_w: np.ndarray, target_pos_w: np.ndarray) -> np.ndarray:
@@ -109,4 +126,20 @@ def get_obs(qpos: np.ndarray, ee_pos_w: np.ndarray, ee_rot_w: np.ndarray, base_p
 
     Hints: You can use the provided functions quat_mul, quat_conjugate, quat_normalize, rot_mat_to_quat for quaternion operations.
     """
-    raise NotImplementedError()
+    # T_WB = np.zeros((4,4))
+    # T_WB[:3,3] = ee_pos_w
+    # T_WB[:3,:3] = ee_rot_w
+    # T_WB[3,3] = 1
+    R_bw = base_rot_w.T # converts vectors from w to b
+    ee_pos_base = R_bw@(ee_pos_w-base_pos_w)
+    target_pos_base = R_bw@(target_pos_w-base_pos_w)
+
+
+    q_bw = quat_conjugate(rot_mat_to_quat(base_rot_w)) # maps world -> base
+    q_we = rot_mat_to_quat(ee_rot_w) # maps EE to world
+
+    ee_quat_base = quat_normalize(quat_mul(q_bw, q_we))
+
+    obs = np.concatenate([qpos, ee_pos_base, ee_quat_base, target_pos_base])
+
+    return obs
