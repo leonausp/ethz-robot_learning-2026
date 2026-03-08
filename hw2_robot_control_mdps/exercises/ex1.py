@@ -18,6 +18,8 @@ def get_lemniscate_keypoint(t, a=0.2):
         y (float or np.ndarray): y coordinates of the keypoint on the lemniscate.
         z (float or np.ndarray): z coordinates of the keypoint on the lemniscate.
     """
+    # to demonstrate what happens when a is increased
+    # a=0.6
     y = a * np.cos(t) / (1+(np.sin(t)**2))
     z = a * np.cos(t)*np.sin(t) / (1+(np.sin(t)**2))
     return y, z
@@ -81,6 +83,8 @@ def ik_track(model, data, site_name, target_pos,
     Returns:
         np.ndarray: Target joint configuration (qpos) that achieves the desired end-effector position.
     """
+    # to demonstrate what happens when dt is decreased
+    # dt = 0.05
     num_joints = model.nv
     # Store the original joint configuration to restore later
     original_qpos = data.qpos.copy()
@@ -142,20 +146,3 @@ def ik_track(model, data, site_name, target_pos,
     mujoco.mj_kinematics(model, data)
     mujoco.mj_forward(model, data)
     return target_qpos
-
-
-
-
-# Theoretical questions
-
-#     1. If you increase the width of the Lemniscate (increasing a), what issue can happen with the robot performing IK?
-#     2. What can happen if you change the dt parameter in IK?
-#     3. We implemented a simple numerical IK solver. What are the advantages and disadvantages compared to an analytical IK solver?
-#     4. What are the limits of our IK solver compared to state-of-the-art IK solvers?
-
-
-# 1. The IK would not yield a solution as the target positions would get unreachable for the robot.
-# 2. The new target position will get changed and corresponds to a step size taken into the direction of the next position. 
-# (If too big -> might go out of bounds, if too small -> might not reach target position even though it is reachable))
-# 3. Advantages: general purpose (applicable to complex robots), Disadvantage: not necessarily the exact solution, can be computationally inefficient
-# 4. Only tracks position, no orientation. Robustness could be a problem (near sigularities).

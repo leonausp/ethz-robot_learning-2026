@@ -91,12 +91,35 @@ def compute_reward(ee_tracking_error: float) -> float:
     Returns:
     - reward: float. The computed reward based on the tracking error. Dimensionality: scalar
     """
+    ###### RUN 8 (normal policy without modifications) ######
     # dense (-> continuous) reward
     dense_reward = np.exp(-2 * ee_tracking_error)
     # sparse (-> has threshold) reward
     sparse_reward = lambda: 1.0 if ee_tracking_error < 0.005 else 0.0
     # total reward (-> sparse_reward() because it's a lamda function)
     reward = dense_reward + sparse_reward()
+
+    ##### BONUS QUESTION #####
+    ### RUN 4 -> gives more reward if tracking error < 0.003
+    # dense (-> continuous) reward
+    # dense_reward = np.exp(-4* ee_tracking_error)
+    # # sparse (-> has threshold) reward
+    # sparse_reward_exact = lambda: 2.0 if ee_tracking_error < 0.003 else 0.0
+    # sparse_reward_normal = lambda: 1.0 if ee_tracking_error < 0.005 else 0.0
+
+    # # total reward (-> sparse_reward() because it's a lamda function)
+    # reward = dense_reward + sparse_reward_exact() + sparse_reward_normal()
+
+    ### RUN 7 -> Penalizes high velocities
+    # # dense (-> continuous) reward
+    # dense_reward = np.exp(-2 * ee_tracking_error)
+    # # sparse (-> has threshold) reward
+    # sparse_reward = lambda: 1.0 if ee_tracking_error < 0.005 else 0.0
+    # # smooth movement (EE)
+    # sparse_reward_velocity = -0.005*(ee_velocity**2)
+    # # total reward (-> sparse_reward() because it's a lamda function)
+    # reward = dense_reward + sparse_reward() + sparse_reward_velocity
+
     return reward
 
 
@@ -126,10 +149,6 @@ def get_obs(qpos: np.ndarray, ee_pos_w: np.ndarray, ee_rot_w: np.ndarray, base_p
 
     Hints: You can use the provided functions quat_mul, quat_conjugate, quat_normalize, rot_mat_to_quat for quaternion operations.
     """
-    # T_WB = np.zeros((4,4))
-    # T_WB[:3,3] = ee_pos_w
-    # T_WB[:3,:3] = ee_rot_w
-    # T_WB[3,3] = 1
     R_bw = base_rot_w.T # converts vectors from w to b
     ee_pos_base = R_bw@(ee_pos_w-base_pos_w)
     target_pos_base = R_bw@(target_pos_w-base_pos_w)
