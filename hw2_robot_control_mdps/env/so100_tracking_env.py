@@ -38,6 +38,13 @@ class SO100TrackEnv(gym.Env):
 
         # Evaluation metrics
         self.ee_tracking_error = 0.0
+        self.ee_velocity = 0.0
+
+        # Get site ID first
+        self.site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "ee_site")
+
+        # Linear + angular velocity (6D vector)
+        self.vel = np.zeros(6)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed, options=options)
@@ -58,6 +65,7 @@ class SO100TrackEnv(gym.Env):
         return process_action(action, self.model.jnt_range)
 
     def compute_reward(self):
+        # return compute_reward(self.ee_tracking_error, self.ee_velocity)
         return compute_reward(self.ee_tracking_error)
 
     def step(self, action):
@@ -65,6 +73,11 @@ class SO100TrackEnv(gym.Env):
         for _ in range(self.ctrl_decimation): 
             mujoco.mj_step(self.model, self.data)
         self.ee_tracking_error = np.linalg.norm(self.data.site("ee_site").xpos - self.data.mocap_pos[0])
+ 
+        mujoco.mj_objectVelocity(self.model, self.data, mujoco.mjtObj.mjOBJ_SITE, self.site_id, self.vel, True)
+
+        # Extract linear velocity (first 3 components)
+        self.ee_velocity = np.linalg.norm(self.vel[:3])  # Speed!        
         reward = self.compute_reward()
 
         terminated = False

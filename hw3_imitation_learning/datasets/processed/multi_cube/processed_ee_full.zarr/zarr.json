@@ -1,0 +1,18 @@
+{
+  "attributes": {
+    "action_space": "ee_full",
+    "action_dim": 6,
+    "action_spec": "delta_pos(3)+delta_euler(3)",
+    "state_spec": "ee_pos(3)+quat_wxyz(4)",
+    "state_key": "state_ee_full",
+    "action_key": "action_ee_full",
+    "num_episodes": 30,
+    "num_dagger_episodes": 0,
+    "num_transitions": 6728,
+    "source_zarrs": [
+      "datasets/raw/multi_cube/teleop/2026-03-16_21-19-09/so100_multicube_teleop.zarr"
+    ]
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

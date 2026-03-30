@@ -26,12 +26,80 @@ from hw3.model import BasePolicy, build_policy
 
 # TODO: Any imports you want from torch or other libraries we use. Not allowed: libraries we don't use
 from torch.utils.data import DataLoader, random_split
+from torch import nn, optim
+
+### WORKFLOW EX1
+# if needed: python scripts/record_teleop_demos.py
+# python scripts/compute_actions.py --action-space ee_full --datasets-dir ./datasets/raw/single_cube/teleop/ --output ./datasets/processed/single_cube/processed_teleop_ee_full.zarr
+# python scripts/train.py --state-keys state_ee_full state_gripper state_cube[:3] state_obstacle --action-keys action_ee_full action_gripper --policy obstacle --zarr ./datasets/processed/single_cube/processed_teleop_ee_full.zarr 
+# python scripts/eval.py --checkpoint ./checkpoints/single_cube/best_model_ee_full_obstacle.pt --headless
+# python student_eval/run_eval.py --exercise 1 --checkpoint checkpoints/single_cube/best_model_ee_full_obstacle.pt
+
+### WORKFLOW EX2
+# if needed: python scripts/record_teleop_demos.py
+# python scripts/compute_actions.py --action-space ee_full --datasets-dir ./datasets/raw/single_cube -output ./datasets/processed/single_cube/processed_dagger_ee_full.zarr
+# python scripts/train.py --state-keys state_ee_full state_gripper state_cube[:3] state_obstacle --action-keys action_ee_full action_gripper --policy obstacle --zarr ./datasets/processed/single_cube/processed_dagger_ee_full.zarr
+# python scripts/eval.py --checkpoint ./checkpoints/single_cube/best_model_ee_full_obstacle_dagger24ep.pt --headless
+# python student_eval/run_eval.py --exercise 2 --checkpoint checkpoints/single_cube/best_model_ee_full_obstacle_dagger24ep.pt
+
+### WORKFLOW EX3
+# if needed: python scripts/record_teleop_demos.py --multicube
+# python scripts/compute_actions.py --datasets-dir ./datasets/raw/multi_cube --action-space ee_full
+# python scripts/train.py --state-keys state_goal original_pos_cube_red[:3] original_pos_cube_green[:3] original_pos_cube_blue[:3] state_ee_full[:3] state_gripper goal_pos[:2] --action-keys action_ee_full action_gripper --policy multitask --zarr ./datasets/processed/multi_cube/processed_ee_full.zarr
+# python scripts/eval.py --checkpoint checkpoints/multi_cube/best_model_ee_full_multitask.pt --multicube --headless
+# python student_eval/run_eval.py --exercise 3 --checkpoint checkpoints/multi_cube/best_model_ee_full_multitask.pt
 
 # TODO: Choose your own hyperparameters!
-EPOCHS = ... 
-BATCH_SIZE = ...
-LR = ...
-VAL_SPLIT = 0.1
+# EPOCHS = ... 
+# BATCH_SIZE = ...
+# LR = ...
+
+# Hyperparameters for EX1
+# EPOCHS_B = 100 
+# BATCH_SIZE_B = 32
+# LR_B= 0.001
+# VAL_SPLIT_B = 0.1
+# D_MODEL_B = 512
+# DEPTH_B = 4
+
+### EX1: 30 teleops, run_eval performance: run_eval performance: 89%
+
+
+# Hyperparameters for EX2
+EPOCHS_B = 100 
+BATCH_SIZE_B = 128
+LR_B= 0.001
+VAL_SPLIT_B = 0.1
+D_MODEL_B = 512
+DEPTH_B = 4
+
+### EX2: 30 teleops + 24 dagger episodes, run_eval performance: 85%
+
+
+# Hyperparameters for EX3
+# EPOCHS_M = 100
+# BATCH_SIZE_M = 128
+# LR_M= 0.001
+# VAL_SPLIT_M = 0.1
+# D_MODEL_M = 512
+# DEPTH_M = 4
+
+### EX3: 60 teleops, run_eval performance: 64%
+### EX3: for only first 30 teleops, run_eval performance: 44%
+### EX3: for only second 30 teleops, run_eval performance: 57%
+
+EPOCHS_M = 100
+BATCH_SIZE_M = 512
+LR_M= 0.0002
+VAL_SPLIT_M = 0.1
+D_MODEL_M = 512
+DEPTH_M = 4
+
+### EX3: 60 teleops, run_eval performance: 78% (LR 0.0001, Batch_Size_M 512)
+### EX3: for only second 30 teleops, run_eval performance: 84% (LR 0.0002, Batch_Size_M 512)
+
+
+
 
 
 def train_one_epoch(
@@ -44,10 +112,28 @@ def train_one_epoch(
     total_loss = 0.0
     n_batches = 0
 
+
+
     for batch in loader:
         states, action_chunks = batch
         # TODO: Implement the training step for one batch here.
         # This mostly: Get states and action_chunks onto the correct device, compute the loss, and step the optimizer.
+        
+ 
+        # get states and actions chunks to correct device
+        states = states.to(device)
+
+        action_chunks = action_chunks.to(device)
+
+        optimizer.zero_grad()
+        loss = model.compute_loss(states, action_chunks)
+        loss.backward()
+        # step optimizer
+        optimizer.step()
+
+        total_loss += loss.item()
+        n_batches +=1
+
 
     return total_loss / max(n_batches, 1)
 
@@ -65,6 +151,12 @@ def evaluate(
     for batch in loader:
         states, action_chunks = batch
         # TODO: Implement the evaluation step for one batch here.
+        states = states.to(device)
+        action_chunks = action_chunks.to(device)
+        loss = model.compute_loss(states, action_chunks)
+        total_loss += loss.item()
+        n_batches +=1
+
 
     return total_loss / max(n_batches, 1)
 
@@ -110,10 +202,26 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
+    if (args.policy == "multitask"):
+        EPOCHS = EPOCHS_M
+        BATCH_SIZE = BATCH_SIZE_M
+        LR = LR_M
+        VAL_SPLIT = VAL_SPLIT_M
+        D_MODEL = D_MODEL_M
+        DEPTH = DEPTH_M
+    else:
+        EPOCHS = EPOCHS_B
+        BATCH_SIZE = BATCH_SIZE_B
+        LR = LR_B
+        VAL_SPLIT = VAL_SPLIT_B
+        D_MODEL = D_MODEL_B
+        DEPTH = DEPTH_B
+
+
     # ── load data ─────────────────────────────────────────────────────
     zarr_paths = [args.zarr]
-    if args.extra_zarr:
-        zarr_paths.extend(args.extra_zarr)
+    # if args.extra_zarr:
+    #     zarr_paths.extend(args.extra_zarr)
 
     if len(zarr_paths) == 1:
         states, actions, ep_ends = load_zarr(
@@ -159,15 +267,19 @@ def main() -> None:
         args.policy,
         state_dim=states.shape[1],
         action_dim=actions.shape[1],
-        # TODO: build with your desired specifications
+        chunk_size=dataset.chunk_size,
+        d_model=None,
+        depth=None
+        # d_model=512,
+        # depth=4
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {n_params:,}")
 
     # TODO: implement an optimizer and scheduler
-    # optimizer =
-    # scheduler =
+    optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
 
     # ── training loop ─────────────────────────────────────────────────
     best_val = float("inf")
