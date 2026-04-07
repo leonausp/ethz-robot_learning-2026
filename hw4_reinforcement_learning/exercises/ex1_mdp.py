@@ -64,16 +64,38 @@ class PolicyIteration:
                     # Suggested steps:
                     # 1. For each action a, compute the action-value under self.v
                     # 2. Weight q_pi(s, a) by pi[s][a]
-                    # 3. Sum over all actions to obtain new_v[s]
-                    raise NotImplementedError("TODO: implement policy evaluation update")
-                
+                    # 3. Sum over all actions to obtain new_v[s] 
+                    # print(self.env.P[s][a])   
+                    
+                    # extract probab, next_state  , reward, done for all next possible states        
+                    prob = [i[0] for i in self.env.P[s][a]]
+                    next_state = [i[1] for i in self.env.P[s][a]]
+                    reward = [i[2] for i in self.env.P[s][a]]
+                    done = [i[3] for i in self.env.P[s][a]]
+                    
+                    # compute all action values for this action
+                    av_list = []
+                    for i in range(len(next_state)):
+                        if done[i]:
+                            av_list.append(prob[i]*reward[i])
+                        else:
+                            av_list.append(prob[i]*(reward[i]+self.gamma*self.v[int(next_state[i])]))
+                    qsa = self.pi[s,a]*sum(av_list)
+
+                    # append action value to action value list
+                    qsa_list.append(qsa)
+
+                # sum over action values of state s and save new value
                 new_v[s] = sum(qsa_list)
                 max_diff = max(max_diff, abs(new_v[s] - self.v[s]))
 
             self.v = new_v
 
             # TODO: stop when the value function has converged
-            raise NotImplementedError("TODO: add convergence check")
+            if (max_diff < self.theta):
+                break
+
+
 
     def policy_improvement(self):
         """
@@ -96,7 +118,23 @@ class PolicyIteration:
                 qsa = 0.0
                 
                 # TODO: compute qsa_list for all actions at state s
-                raise NotImplementedError("TODO: compute q-values for policy improvement")
+                prob = [i[0] for i in self.env.P[s][a]]
+                next_state = [i[1] for i in self.env.P[s][a]]
+                reward = [i[2] for i in self.env.P[s][a]]
+                done = [i[3] for i in self.env.P[s][a]]
+
+                # compute all action values for this action
+                av_list = []
+                for i in range(len(next_state)):
+                    if done[i]:
+                        av_list.append(prob[i]*reward[i])
+                    else:
+                        av_list.append(prob[i]*(reward[i]+self.gamma*self.v[int(next_state[i])]))
+                qsa = sum(av_list)
+
+                # append action value to action value list
+                qsa_list.append(qsa)
+
 
             max_q = max(qsa_list)
             num_best_actions = sum(np.isclose(qsa_list, max_q))
@@ -132,7 +170,8 @@ class PolicyIteration:
             old_pi = copy.deepcopy(self.pi)
 
             # TODO: implement the main loop of policy iteration
-            raise NotImplementedError("TODO: implement policy iteration main loop")
+            self.policy_evaluation()
+            new_pi = self.policy_improvement()
 
             if np.allclose(old_pi, new_pi):
                 break
@@ -190,7 +229,23 @@ class ValueIteration:
                     qsa = 0.0
                     
                     # TODO: compute all action-values Q(s, a)
-                    raise NotImplementedError("TODO: implement value iteration update")
+                    prob = [i[0] for i in self.env.P[s][a]]
+                    next_state = [i[1] for i in self.env.P[s][a]]
+                    reward = [i[2] for i in self.env.P[s][a]]
+                    done = [i[3] for i in self.env.P[s][a]]
+
+                    # compute all action values for this action
+                    av_list = []
+                    for i in range(len(next_state)):
+                        if done[i]:
+                            av_list.append(prob[i]*reward[i])
+                        else:
+                            av_list.append(prob[i]*(reward[i]+self.gamma*self.v[int(next_state[i])]))
+                    qsa = sum(av_list)
+
+                    # append action value to action value list
+                    qsa_list.append(qsa)
+
 
                 new_v[s] = max(qsa_list)
                 max_diff = max(max_diff, abs(new_v[s] - self.v[s]))
@@ -198,7 +253,8 @@ class ValueIteration:
             self.v = new_v
             
             # TODO: stop when the value function has converged
-            raise NotImplementedError("TODO: add convergence check")
+            if (max_diff < self.theta):
+                break
 
         self.get_policy()
         return self.v, self.pi
@@ -220,7 +276,23 @@ class ValueIteration:
             for a in range(self.env.n_actions):
                 qsa = 0.0
                 # TODO: compute qsa_list for all actions
-                raise NotImplementedError("TODO: compute q-values for greedy policy extraction")
+                prob = [i[0] for i in self.env.P[s][a]]
+                next_state = [i[1] for i in self.env.P[s][a]]
+                reward = [i[2] for i in self.env.P[s][a]]
+                done = [i[3] for i in self.env.P[s][a]]
+
+                # compute all action values for this action
+                av_list = []
+                for i in range(len(next_state)):
+                    if done[i]:
+                        av_list.append(prob[i]*reward[i])
+                    else:
+                        av_list.append(prob[i]*(reward[i]+self.gamma*self.v[int(next_state[i])]))
+                qsa = sum(av_list)
+
+                # append action value to action value list
+                qsa_list.append(qsa)
+
 
             max_q = max(qsa_list)
             num_best_actions = sum(np.isclose(qsa_list, max_q))
@@ -228,3 +300,7 @@ class ValueIteration:
                 1.0 / num_best_actions if np.isclose(q, max_q) else 0.0
                 for q in qsa_list
             ]
+
+
+
+

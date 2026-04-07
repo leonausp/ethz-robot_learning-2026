@@ -38,7 +38,7 @@ class ReplayBuffer:
             done (bool): whether the episode terminates after this transition
         """
         # TODO: Append the transition to the replay buffer.                  
-        raise NotImplementedError
+        self.buffer.append((state, action, reward, next_state, done))
 
     def sample(self, batch_size):
         """
@@ -108,7 +108,11 @@ class QNet(torch.nn.Module):
         """
         # TODO: Implement the forward pass of the network.         
         # Use ReLU after the first linear layer.                   
-        raise NotImplementedError
+        x = self.fc1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+
+        return x
 
 
 class DQN:
@@ -169,7 +173,21 @@ class DQN:
         # - For exploitation, convert the state to a torch tensor
         #   of shape (1, state_dim), move it to `self.device`,
         #   and choose the action with the largest Q-value.
-        raise NotImplementedError
+        
+        # random value used to determine to explore or not
+        prob_explore = np.random.random()
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
+
+
+        # explore
+        if (prob_explore < self.epsilon):
+            # choose random action
+            return np.random.randint(self.action_dim)
+        # don't explore
+        else:
+            # choose action with largest Q-value
+            return self.q_net(state).argmax().item()
+
 
     def predict_action(self, state):
         """
@@ -224,7 +242,9 @@ class DQN:
             # Hint:
             # - Use the target network for next-state values.
             # - DQN target: r + gamma * max_a' Q_target(s', a') * (1 - done)
-            raise NotImplementedError
+            next_q_values = self.target_q_net(next_states)
+            max_next_q_values =  next_q_values.max(dim=1, keepdim=True)[0]
+            q_targets = rewards + self.gamma * max_next_q_values*(1 - dones)
 
         # Compute DQN loss
         dqn_loss = torch.mean(F.mse_loss(q_values, q_targets))
